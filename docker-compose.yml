@@ -1,0 +1,35 @@
+# 简历智能匹配系统 (T2-2) — 一键编排
+#
+# 用法:
+#   docker compose up -d --build      # 构建并后台启动
+#   浏览器访问 http://<服务器IP>:8501
+#
+# ⚠️ 目标机器是腾讯云 x86_64;若在 Apple Silicon (M1/M2) 上构建,
+#    已通过下面的 platform 锁定 amd64(QEMU 模拟,构建较慢但产物可在 x86 跑)。
+#    若就在本机 arm64 演示,可注释掉 platform 行以加速构建。
+
+services:
+  app:
+    # 目标 x86 服务器;在 Apple Silicon 上构建时锁定 amd64(QEMU 模拟)。
+    # 若就在本机 arm64 演示,注释掉此行以加速构建。
+    platform: linux/amd64
+    build:
+      context: .
+      args:
+        HF_ENDPOINT: https://huggingface.co
+    image: resume-matcher:latest
+    ports:
+      - "8501:8501"
+    restart: unless-stopped
+    volumes:
+      # 可选:把宿主机 ./data 挂进容器,方便替换 Demo 用的简历/JD 数据,
+      # 改数据不必重建镜像。模型已烘进镜像,不依赖此挂载。
+      - ./data:/app/data:ro
+    # ML 服务吃内存:加载模型 + 推理大约需 1~2GB。
+    # 建议给容器留足内存上限,内存不足会被 OOM kill(表现为容器反复重启)。
+    # 取消下面注释可硬限制(需 Compose v2.x 支持):
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2g
+    mem_limit: 2g                     # 单机直接限制内存上限,防 OOM 拖垮宿主机

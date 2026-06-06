@@ -1,0 +1,35 @@
+# 构建上下文排除项:避免把无关大文件传进 docker daemon,加快构建。
+
+# 版本控制
+.git
+.gitignore
+
+# Python 缓存 / 虚拟环境
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+
+# 本地真实数据(测试用脱敏假数据若需进镜像,可在此放行;默认整体排除)
+data/
+
+# 实验产物(报告用,不进镜像)
+experiments/results/
+
+# 本地模型缓存(模型在构建阶段重新下载烘入,不带入本地缓存)
+models/
+.cache/
+*.bin
+*.safetensors
+
+# 文档 / PPT / 报告(不进运行镜像)
+docs/
+*.pdf
+*.md
+
+# 系统杂项
+.DS_Store
+.idea/
+.vscode/

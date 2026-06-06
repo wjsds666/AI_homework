@@ -1,0 +1,12 @@
+# Streamlit 主题:锁定深色,保证投屏/不同系统下视觉一致(不随用户浅色模式漂移)。
+[theme]
+base = "dark"
+primaryColor = "#5b7cfa"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#161a23"
+textColor = "#e6e9f0"
+font = "sans serif"
+
+[server]
+headless = true
+port = 8501
