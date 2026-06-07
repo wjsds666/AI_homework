@@ -14,8 +14,14 @@ matplotlib.use("Agg")  # 无显示环境也能出图。
 import matplotlib.pyplot as plt
 import numpy as np
 
-# 中文显示:指定常见中文字体并修正负号。
-plt.rcParams["font.sans-serif"] = ["PingFang SC", "Heiti SC", "SimHei", "Arial Unicode MS"]
+# 中文显示:跨平台字体回退链。
+# - macOS:PingFang SC / Heiti SC;Windows:SimHei;
+# - Linux/Docker:Noto Sans CJK SC(fonts-noto-cjk)/ 文泉驿(fonts-wqy-zenhei)。
+# 镜像里装了 fonts-noto-cjk,优先用它,避免中文渲染成方框。
+plt.rcParams["font.sans-serif"] = [
+    "Noto Sans CJK SC", "Noto Sans CJK JP", "WenQuanYi Zen Hei",
+    "PingFang SC", "Heiti SC", "SimHei", "Arial Unicode MS",
+]
 plt.rcParams["axes.unicode_minus"] = False
 
 # 联系方式/纯个人标识:无条件过滤(无论句子长短)。

@@ -11,9 +11,10 @@
 FROM python:3.11-slim
 
 # --- 系统依赖 ---
-# 直接使用 Debian 官方源,避免某些网络环境下第三方镜像返回 403。
+# curl:健康检查用;fonts-noto-cjk:matplotlib 渲染中文(雷达图/条形图),
+#   否则纯净 Debian 无中文字体,图中中文会变成方框「□」。
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends curl fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
