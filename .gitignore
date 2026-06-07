@@ -21,3 +21,7 @@ experiments/results/
 .DS_Store
 .idea/
 .vscode/
+
+# AI 协作说明(仅本地使用,不入库)
+AGENTS.md
+CLAUDE.md
