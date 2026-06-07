@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import streamlit as st
 
 from src import config
@@ -221,6 +223,33 @@ def summary_text(result) -> str:
     return ",".join(parts) + "。"
 
 
+ROOT = Path(__file__).resolve().parent
+DATA_DIR = ROOT / "data"
+DEFAULT_RESUME_TXT = DATA_DIR / "resumes" / "resume_backend.txt"
+DEFAULT_JD_TXT = DATA_DIR / "jds" / "jd_backend.txt"
+
+
+def _read_demo_text(path: Path) -> str:
+    """读取内置 Demo 文本,缺失时返回空串,避免首屏报错。"""
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+
+def _demo_resume() -> dict:
+    """返回内置 Demo 简历(文本模式),供首屏一键演示。"""
+    text = _read_demo_text(DEFAULT_RESUME_TXT)
+    return {"name": DEFAULT_RESUME_TXT.name, "text": text, "sentences": split_sentences(text)}
+
+
+def _demo_jd() -> dict:
+    """返回内置 Demo JD(文本模式),供首屏一键演示。"""
+    text = _read_demo_text(DEFAULT_JD_TXT)
+    title = text.strip().splitlines()[0] if text.strip() else DEFAULT_JD_TXT.name
+    return {"name": DEFAULT_JD_TXT.name, "title": title, "text": text, "sentences": split_sentences(text)}
+
+
 # PLACEHOLDER_BODY
 
 # ---- 顶部品牌条 ----
@@ -268,30 +297,55 @@ if flags.get("BATCH_RANK"):
 
 if mode == "单份匹配":
     st.markdown("<span class='step-tag'>STEP 1 · 输入</span>", unsafe_allow_html=True)
+    demo_resume = _demo_resume()
+    demo_jd = _demo_jd()
+    use_demo = st.toggle(
+        "使用内置 Demo 数据",
+        value=True,
+        help="默认预置一份后端简历样例和一份后端岗位 JD,打开页面即可直接点击分析。",
+    )
     col_resume, col_jd = st.columns(2, gap="large")
     with col_resume:
         st.markdown("<div class='sec'>📄 候选人简历</div>", unsafe_allow_html=True)
-        st.markdown("<div class='sec-sub'>支持 PDF / TXT,自动解析正文</div>", unsafe_allow_html=True)
-        resume_file = st.file_uploader("简历文件", type=["pdf", "txt"], key="resume",
-                                       label_visibility="collapsed")
+        if use_demo:
+            st.markdown("<div class='sec-sub'>已预置一份演示简历,可直接分析;关闭后可上传 PDF / TXT</div>",
+                        unsafe_allow_html=True)
+            resume_file = None
+            st.info(f"已载入演示简历: {demo_resume['name']}")
+        else:
+            st.markdown("<div class='sec-sub'>支持 PDF / TXT,自动解析正文</div>", unsafe_allow_html=True)
+            resume_file = st.file_uploader("简历文件", type=["pdf", "txt"], key="resume",
+                                           label_visibility="collapsed")
     with col_jd:
         st.markdown("<div class='sec'>🧭 岗位 JD</div>", unsafe_allow_html=True)
-        jd_mode = st.radio("JD 输入方式", ["粘贴文本", "上传文件"], horizontal=True,
-                           label_visibility="collapsed")
-        jd_text_input = ""
-        jd_file = None
-        if jd_mode == "粘贴文本":
-            jd_text_input = st.text_area("粘贴 JD 文本", height=180,
-                                         placeholder="粘贴岗位职责与任职要求…",
-                                         label_visibility="collapsed")
+        if use_demo:
+            st.markdown("<div class='sec-sub'>已预置一份演示 JD,可直接分析;关闭后可改为粘贴 / 上传</div>",
+                        unsafe_allow_html=True)
+            jd_mode = "粘贴文本"
+            jd_file = None
+            jd_text_input = st.text_area(
+                "粘贴 JD 文本",
+                value=demo_jd["text"],
+                height=180,
+                label_visibility="collapsed",
+            )
         else:
-            jd_file = st.file_uploader("JD 文件", type=["pdf", "txt"], key="jd",
-                                       label_visibility="collapsed")
+            jd_mode = st.radio("JD 输入方式", ["粘贴文本", "上传文件"], horizontal=True,
+                               label_visibility="collapsed")
+            jd_text_input = ""
+            jd_file = None
+            if jd_mode == "粘贴文本":
+                jd_text_input = st.text_area("粘贴 JD 文本", height=180,
+                                             placeholder="粘贴岗位职责与任职要求…",
+                                             label_visibility="collapsed")
+            else:
+                jd_file = st.file_uploader("JD 文件", type=["pdf", "txt"], key="jd",
+                                           label_visibility="collapsed")
 
     # 当前输入指纹:用于判断「上传/修改后是否需要重新匹配」。
     def _fp(f):
         return (f.name, f.size) if f is not None else None
-    cur_fp = (_fp(resume_file), jd_mode,
+    cur_fp = (use_demo, _fp(resume_file) if not use_demo else demo_resume["name"], jd_mode,
               jd_text_input.strip() if jd_mode == "粘贴文本" else _fp(jd_file))
 
     st.write("")
@@ -302,7 +356,7 @@ if mode == "单份匹配":
     input_changed = saved is not None and saved["fp"] != cur_fp
 
     if run:
-        if resume_file is None:
+        if not use_demo and resume_file is None:
             st.error("请先上传简历。")
             st.stop()
         if jd_mode == "粘贴文本" and not jd_text_input.strip():
@@ -314,7 +368,12 @@ if mode == "单份匹配":
 
         with st.status("正在进行智能分析…", expanded=True) as status:
             st.write("① 解析简历与 JD 文档…")
-            resume = read_upload(resume_file)
+            if use_demo:
+                resume = {"text": demo_resume["text"], "sentences": demo_resume["sentences"]}
+                resume_name = demo_resume["name"]
+            else:
+                resume = read_upload(resume_file)
+                resume_name = resume_file.name
             if jd_mode == "粘贴文本":
                 jd = {"text": jd_text_input, "sentences": split_sentences(jd_text_input)}
                 jd_title = jd_text_input.strip().splitlines()[0][:40] if jd_text_input.strip() else "粘贴的 JD"
@@ -332,7 +391,7 @@ if mode == "单份匹配":
         st.session_state["match"] = {
             "result": result,
             "resume_text": resume["text"],
-            "summary": {"resume": resume_file.name, "jd": jd_title},
+            "summary": {"resume": resume_name, "jd": jd_title},
             "fp": cur_fp,
         }
         saved = st.session_state["match"]
