@@ -145,6 +145,53 @@ RADAR_DIMENSIONS: dict[str, str] = {
     "项目": "项目经历、主导或参与的项目、产品、系统、业务成果",
 }
 
+_EDU_DEGREE_SCORES: list[tuple[re.Pattern[str], float]] = [
+    (re.compile(r"(博士后|博士研究生|博士学位|ph\.?\s*d|doctor)"), 96.0),
+    (re.compile(r"(硕士研究生|硕士学位|mba|master)"), 88.0),
+    (re.compile(r"(本科|学士学位|bachelor|大学本科)"), 80.0),
+    (re.compile(r"(大专|专科|高职)"), 65.0),
+]
+_EDU_SCHOOL_SCORES: list[tuple[re.Pattern[str], float]] = [
+    (re.compile(r"(清华大学|北京大学)"), 95.0),
+    (re.compile(r"(复旦大学|上海交通大学|浙江大学|中国科学技术大学|南京大学|哈尔滨工业大学|西安交通大学)"), 92.0),
+    (re.compile(r"(985|c9|双一流a类)"), 90.0),
+    (re.compile(r"(211|双一流)"), 84.0),
+    (re.compile(r"(大学|学院|university|college)"), 72.0),
+]
+_EDU_MAJOR_PAT = re.compile(
+    r"(专业|学院|学系|计算机|软件工程|人工智能|数据科学|电子|通信|自动化|数学|统计|金融|会计|法学|英语)"
+)
+_EDU_SECTION_PAT = re.compile(r"(教育背景|学历|学位|毕业|在读|就读)")
+
+
+def _education_rule_score(resume_sentences: list[str]) -> float:
+    """根据院校/学位/专业等显式教育信息给学历维度一个可解释的保底分。"""
+    text = "\n".join(s.strip() for s in resume_sentences if s.strip())
+    if not text:
+        return 0.0
+
+    degree_scores = [score for pat, score in _EDU_DEGREE_SCORES if pat.search(text)]
+    school_scores = [score for pat, score in _EDU_SCHOOL_SCORES if pat.search(text)]
+    has_major = bool(_EDU_MAJOR_PAT.search(text))
+    has_section = bool(_EDU_SECTION_PAT.search(text))
+
+    components: list[float] = []
+    if degree_scores:
+        components.append(max(degree_scores))
+    if school_scores:
+        components.append(max(school_scores))
+    if has_major:
+        components.append(78.0)
+    if has_section:
+        components.append(70.0)
+    if not components:
+        return 0.0
+
+    score = float(np.mean(components))
+    if len(components) >= 3:
+        score += 6.0
+    return min(100.0, round(score, 1))
+
 
 def dimension_scores(
     resume_sentences: list[str],
@@ -183,8 +230,15 @@ def dimension_scores(
         sims = resume_vecs @ dv  # 与简历每句的余弦。
         k = min(3, len(sims))
         top = np.sort(sims)[-k:]  # 最相关的 k 句。
-        score = float(np.mean(top))
-        scores[dim] = round(max(0.0, min(1.0, score)) * 100, 1)
+        semantic_score = float(np.mean(top))
+        semantic_score = round(max(0.0, min(1.0, semantic_score)) * 100, 1)
+
+        if dim == "学历":
+            rule_score = _education_rule_score(resume_sentences)
+            if rule_score > 0:
+                semantic_score = round(max(semantic_score, rule_score), 1)
+
+        scores[dim] = semantic_score
     return scores
 
 
@@ -276,4 +330,3 @@ def rank_bar_figure(names: list[str], scores: list[float]):
                 va="center", fontsize=9, color=fg)
     fig.tight_layout()
     return fig
-

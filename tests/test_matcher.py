@@ -7,6 +7,7 @@ import numpy as np
 from src.matcher import combined_score, semantic_similarity
 from src.parser import split_sentences
 from src.skills import extract_skills, match_skills
+from src.visualize import _education_rule_score, dimension_scores
 
 
 def test_split_sentences_mixed():
@@ -103,3 +104,51 @@ def test_extract_skills_only_from_requirement_section():
     assert "需求分析" in skills
     assert "客户成功" not in skills  # 职责段噪声,不应入选
     assert "销售" not in skills
+
+
+def test_education_rule_score_detects_degree_and_elite_school():
+    resume_sentences = [
+        "教育背景：清华大学 计算机科学与技术 本科",
+        "主修课程包括数据结构、操作系统、机器学习。",
+    ]
+    score = _education_rule_score(resume_sentences)
+    assert score >= 85.0
+
+
+def test_dimension_scores_raise_education_when_school_is_explicit():
+    resume_sentences = [
+        "教育背景：清华大学 计算机科学与技术 本科",
+        "参与后端服务开发，熟悉 Python、Docker 与 SQL。",
+        "负责推荐系统项目落地。",
+    ]
+    resume_vecs = np.array(
+        [
+            [0.20, 0.96, 0.00],
+            [1.00, 0.00, 0.00],
+            [0.00, 0.00, 1.00],
+        ],
+        dtype=np.float32,
+    )
+    resume_vecs = resume_vecs / np.linalg.norm(resume_vecs, axis=1, keepdims=True)
+    jd_doc_vec = np.array([0.2, 0.3, 0.1], dtype=np.float32)
+
+    class StubEmbedder:
+        def encode(self, sentences, batch_size=32):
+            return np.array(
+                [
+                    [1.00, 0.00, 0.00],  # 技能
+                    [0.00, 1.00, 0.00],  # 经验
+                    [0.00, 1.00, 0.00],  # 学历
+                    [0.00, 0.00, 1.00],  # 项目
+                ],
+                dtype=np.float32,
+            )[1:]
+
+    scores = dimension_scores(
+        resume_sentences,
+        resume_vecs,
+        jd_doc_vec,
+        skill_coverage=0.6,
+        embedder=StubEmbedder(),
+    )
+    assert scores["学历"] >= 80.0
