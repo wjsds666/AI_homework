@@ -140,10 +140,6 @@ docker network disconnect bridge resume-matcher-app-1   # 断开容器网络(或
 
 ---
 
-## 目录结构
-
-见 [`CLAUDE.md`](CLAUDE.md) 第 5 节。
-
 ## 测试数据说明
 
 `data/` 下均为**脱敏假数据**(虚构姓名、虚构联系方式),仅供测试与 Demo,不含任何真实个人信息。
